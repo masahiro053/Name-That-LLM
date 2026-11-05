@@ -41,3 +41,25 @@
 *   [0.667 | Pairwise Verifier + Matched External Rows](https://www.kaggle.com/code/zbigniewkirchner/0-667-pairwise-verifier-matched-external-rows/notebook) (マッチング手法のハック参考①)
 *   [Name That LLM Solution](https://www.kaggle.com/code/mohammedafreedpasha/name-that-llm-solution) (ハンガリアン法による最適割り当ての参考②)
 *   [🕵️ The Usual Suspects](https://www.kaggle.com/code/leoprovorov/the-usual-suspects) (Gaussian Headによるトピック影響除去の参考)
+
+### 2026-11-05 (Day 2)
+**Done**
+*   公式のStarter Notebook（TF-IDF）をフォークし、インターネットOFF環境での推論・Submitを実行。
+*   無事に提出パイプラインが開通し、Public LB Score: `0.317` を獲得（ベースラインとして正常稼働を確認）。
+*   今後の全体戦略とロードマップの策定。
+    *   **方針:** 試行回数と解釈性を重視し、当面は「テキスト特徴量エンジニアリング ＋ LightGBM」でスコアを伸ばす。
+    *   **理由:** LLMへの丸投げはGPUを浪費して試行回数が落ちる上、ブラックボックス化して「どの特徴が効いているか（各モデルの文体の癖）」が分からなくなるため。
+    *   LightGBMの `feature_importance` で各LLMの文体（Stylometry）を特定し、最終的にはハンガリアン法による最適割り当てでスコアのジャンプアップを狙う。
+*   データ不足懸念の払拭。有志による以下の強力な公開データセットの存在を確認。
+    *   `Name That LLM | Prism Feature Atlas` (468種の文体特徴量抽出済みデータ)
+    *   `Name That LLM: same-prompt generations v1` (1つのプロンプトに複数モデルが答える構造を再現した12,500件データ)
+    *   `Name That LLM: Extra API Passages` (見分けが難しいClaude専用の約5,000件データ)
+
+**Todo (Next Actions)**
+*   Pandasを用いたテキスト前処理（文字数・単語数・句読点カウント）と、公開データセット（Prism Feature Atlasなど）の特徴量を結合するデータパイプラインの構築。
+*   特徴量とTF-IDFを合わせたLightGBMのローカル学習環境構築と、特徴量重要度の可視化。
+*   Claude系モデルを分離して推論する「2段階分類（Claude Gate手法）」のアーキテクチャ検討。
+
+**Memo**
+*   パイプラインが開通し、自分の得意な「特徴量を作って精度を見る」ループに入れるようになった。
+*   重いモデルを回してデータを生成するお金のかかる作業はKaggleの有志がやってくれている。自分は彼らが提供してくれた特徴量をどうLightGBMに食わせ、どう重複なく割り当てるか（パズルを解くこと）に集中すれば勝負できる。
