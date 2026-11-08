@@ -1,15 +1,25 @@
-### Score Board (Update)
+# Name That LLM - Kaggle Diary
+
+## 🏆 Competition Overview
+*   **Task:** 40〜250単語の短いテキストから、それを生成した18種類の最先端LLMを特定する「著者特定（Authorship attribution）」タスク。
+*   **Metric:** Balanced Accuracy（マクロ平均正解率）。
+*   **Constraints:** Code Competition (CPU/GPU 9時間以内, インターネット接続不可)。
+*   **Timeline:**
+    *   Team Merger Deadline: 2027-01-06 23:59 UTC
+    *   Final Submission Deadline: 2027-01-13 23:59 UTC
+
+## 📊 Score Board
 | Date | Method / Model | CV | Public LB | Private LB |
 | :--- | :--- | :--- | :--- | :--- |
 | 2026-11-05 | TF-IDF + Logistic Regression (Starter) | - | 0.317 | - |
-| 2026-11-06 | LightGBM + Stylometry + TF-IDF (Official Data) | 0.1522 | - | - |
-| 2026-11-06 | LightGBM + Stylometry + TF-IDF + Open Pool (47k rows) | ~0.270 | (Submit待機中) | - |
+| 2026-11-06 | TF-IDF + Stylometry + LightGBM (Official Data) | 0.1522 | - | - |
+| 2026-11-08 | TF-IDF + Stylometry + LightGBM + Open Pool (47k rows) + Dummy Hungarian | ~0.270 | 0.264 | - |
 
 ---
 ## 📝 Daily Log
 
 
-### 2026-11-04 (Day 1)
+### 2026-11-04
 
 **Done**
 
@@ -59,7 +69,7 @@
 
 
 
-### 2026-11-05 (Day 2)
+### 2026-11-05
 
 **Done**
 
@@ -102,7 +112,7 @@
 *   重いモデルを回してデータを生成するお金のかかる作業はKaggleの有志がやってくれている。自分は彼らが提供してくれた特徴量をどうLightGBMに食わせ、どう重複なく割り当てるか（パズルを解くこと）に集中すれば勝負できる。
 
 
-### 2026-11-06 (Day 3)
+### 2026-11-06
 **Done**
 *   **ベースライン構築:** ブラックボックスな深層学習を避け、解釈性が高く軽量なLightGBMベースの学習・推論パイプライン（CV: StratifiedKFold 5-fold）を実装。
 *   **特徴量エンジニアリングと有効性証明:** TF-IDF（max_features=3000）に加え、Pandasで構造的特徴量（Stylometry: 文字数、単語長、大文字割合、句読点カウント等）を抽出。
@@ -126,3 +136,26 @@
 *   Kaggleのデータセットは頻繁に更新されるため、公開コードの列（今回は `match_weight`）が存在しないエラーに遭遇したが、柔軟なサンプリング分岐で回避できた。
 *   ハンガリアン法は計算量が心配だったが、プロンプトごとの極小行列（18×18）に対する処理なので数ミリ秒で爆速で終わることが判明。Kaggleの9時間制限のボトルネックにはならない。
 *   逆に、データ量が4.7万件かつTF-IDFの3000列に増えたため、LightGBMのCVには10〜20分かかるようになったが、推論側は一瞬なので問題なし。
+
+### 2026-11-08 
+**Done**
+*   **Submit結果の分析:**
+    *   外部データ増強版LightGBM ＋ ダミーのハンガリアン法（`// 18`でグループ化）をSubmitした結果、Public LBは `0.264` へ下落。
+    *   **結論:** 本番の隠しテストデータはプロンプトごとに並んでおらず、**完全シャッフルされていることが確定**。無関係な行同士でハンガリアン法をかけたため、正しい予測が強制的に書き換えられ自滅した。
+*   **CV低下の根本原因究明（次元の呪い）:**
+    *   ハンガリアン法以前に、LightGBMモデル単体のCVスコアが初期のLogistic Regression（0.317）を下回っている違和感を調査。
+    *   **原因:** 「TF-IDF（数千列の0が多い疎行列）」と「決定木（LightGBM）」の致命的なアーキテクチャミスマッチ。決定木は1回の分岐で1列しか評価できないため、数千のスパースな単語列から意味を見出せず、アンダーフィットを起こしていた。
+*   **過去コンペ（DAIGT等）と現在の上位解法リサーチ:**
+    *   **SOTA:** DeBERTa-v3-large のFine-tuning（LB 0.587超え）や軽量LLM（Qwen/Llama等）のLoRA。
+    *   **機械学習の最適解:** TF-IDFを活かすなら、全列の重みを同時計算できる線形モデル（LinearSVC, Logistic Regression, Ridge）が必須。
+    *   **後処理の必須ハック:** シャッフル対策として、Sentence-BERT等でテキストを密ベクトル化し、コサイン類似度や階層的クラスタリングを用いて「同じプロンプトの18行」を自力で復元（Prompt Reconstruction）した上でハンガリアン法を適用するのが上位陣の定石。
+
+**Todo (Next Actions)**
+*   アプローチのピボット（以下3案から方針を決定し実装する）。
+    1.  **原点回帰 (ML Baseline):** LightGBMを破棄し、増強した4.7万件のデータとTF-IDFを `LinearSVC` または `RidgeClassifier` に学習させる。
+    2.  **Dense + LightGBM:** TF-IDFをやめ、Sentence-BERTで768次元の密ベクトルに変換してからLightGBMに投入する。
+    3.  **NLPの王道 (SOTA):** 腹を括って `DeBERTa-v3-large` のFine-tuning環境を構築する。
+
+**Memo**
+*   自身の直感（CVが以前のロジスティック回帰より下がっている違和感）から、モデルの構造的欠陥に気づけたのは大きな収穫。
+*   NLPコンペにおいて「テキストはTF-IDFにしてとりあえずLightGBM」という脳死のパイプラインは通用しない。データの性質（疎か密か）とモデルの得意領域を合致させる基礎が重要だと再認識した。
